@@ -452,6 +452,124 @@ static size_t x_get_border_rectangles(Con *con, xcb_rectangle_t rectangles[4]) {
     return count;
 }
 
+void x_shape_title(Con *con) {
+    if (con->layout != L_TABBED && con->layout != L_STACKED) {
+        return;
+    }
+
+    uint16_t w = con->rect.width;
+    uint16_t h = con->rect.height;
+
+    xcb_pixmap_t pid = xcb_generate_id(conn);
+
+    xcb_create_pixmap(conn, 1, pid, con->frame.id, w, h);
+
+    xcb_gcontext_t black = xcb_generate_id(conn);
+    xcb_gcontext_t white = xcb_generate_id(conn);
+
+    xcb_create_gc(conn, black, pid, XCB_GC_FOREGROUND, (uint32_t[]){0, 0});
+    xcb_create_gc(conn, white, pid, XCB_GC_FOREGROUND, (uint32_t[]){1, 0});
+
+    int32_t r = con->border_radius;
+    int32_t d = r * 2;
+
+    xcb_rectangle_t bounding = {0, 0, w, h};
+
+    xcb_arc_t arcs[] = {
+        {0, 1, d, d, 0, 360 << 6},
+        {w - d - 1, 1, d, d, 0, 360 << 6},
+    };
+
+    xcb_rectangle_t rects[] = {
+        {r, 0, w - d, h},
+        {0, r, w, h - r},
+    };
+
+    xcb_poly_fill_rectangle(conn, pid, black, 1, &bounding);
+    xcb_poly_fill_rectangle(conn, pid, white, 2, rects);
+    xcb_poly_fill_arc(conn, pid, white, 2, arcs);
+
+    xcb_shape_mask(conn, XCB_SHAPE_SO_SET, XCB_SHAPE_SK_BOUNDING, con->frame.id, 0, 0, pid);
+    xcb_shape_mask(conn, XCB_SHAPE_SO_SET, XCB_SHAPE_SK_CLIP, con->frame.id, 0, 0, pid);
+
+    xcb_free_pixmap(conn, pid);
+}
+
+static bool has_outer_gaps(gaps_t gaps) {
+    return gaps.top > 0 ||
+           gaps.right > 0 ||
+           gaps.bottom > 0 ||
+           gaps.left > 0;
+}
+
+static bool smart_gaps_active(Con *con) {
+    return config.smart_gaps == SMART_GAPS_ON && con_num_visible_children(con->parent) <= 1;
+}
+
+static bool smart_gaps_has_gaps(Con *con) {
+    return smart_gaps_active(con) && !has_outer_gaps(calculate_effective_gaps(con));
+}
+
+/*
+ * Round window corners when possible
+ *
+ */
+void x_shape_window(Con *con) {
+    const xcb_query_extension_reply_t *shape_query;
+    shape_query = xcb_get_extension_data(conn, &xcb_shape_id);
+
+    if (!shape_query->present || con->parent->type == CT_DOCKAREA) {
+        return;
+    }
+
+    if (con->fullscreen_mode ||
+        (!con_is_floating(con) && smart_gaps_has_gaps(con))) {
+        xcb_shape_mask(conn, XCB_SHAPE_SO_SET, XCB_SHAPE_SK_BOUNDING, con->frame.id, 0, 0, XCB_NONE);
+        xcb_shape_mask(conn, XCB_SHAPE_SO_SET, XCB_SHAPE_SK_CLIP, con->frame.id, 0, 0, XCB_NONE);
+        return;
+    }
+
+    uint16_t w = con->rect.width;
+    uint16_t h = con->rect.height;
+    uint16_t dh = con->deco_rect.height;
+
+    xcb_pixmap_t pid = xcb_generate_id(conn);
+
+    xcb_create_pixmap(conn, 1, pid, con->frame.id, w, h);
+
+    xcb_gcontext_t black = xcb_generate_id(conn);
+    xcb_gcontext_t white = xcb_generate_id(conn);
+
+    xcb_create_gc(conn, black, pid, XCB_GC_FOREGROUND, (uint32_t[]){0, 0});
+    xcb_create_gc(conn, white, pid, XCB_GC_FOREGROUND, (uint32_t[]){1, 0});
+
+    int32_t r = con->border_radius;
+    int32_t d = r * 2;
+
+    xcb_rectangle_t bounding = {0, 0, w, h};
+
+    xcb_arc_t arcs[] = {
+        {0, -dh, d, d, 0, 360 << 6},
+        {0, h - d - 1, d, d, 0, 360 << 6},
+        {w - d - 1, -dh, d, d, 0, 360 << 6},
+        {w - d - 1, h - d - 1, d, d, 0, 360 << 6},
+    };
+
+    xcb_rectangle_t rects[] = {
+        {r, 0, w - d, h},
+        {0, r - dh, w, h - d + dh},
+    };
+
+    xcb_poly_fill_rectangle(conn, pid, black, 1, &bounding);
+    xcb_poly_fill_rectangle(conn, pid, white, 2, rects);
+    xcb_poly_fill_arc(conn, pid, white, 4, arcs);
+
+    xcb_shape_mask(conn, XCB_SHAPE_SO_SET, XCB_SHAPE_SK_BOUNDING, con->frame.id, 0, 0, pid);
+    xcb_shape_mask(conn, XCB_SHAPE_SO_SET, XCB_SHAPE_SK_CLIP, con->frame.id, 0, 0, pid);
+
+    xcb_free_pixmap(conn, pid);
+}
+
 /*
  * Draws the decoration of the given container onto its parent.
  *
@@ -746,6 +864,7 @@ void x_draw_decoration(Con *con) {
 
     x_draw_decoration_after_title(con, p);
 copy_pixmaps:
+    x_shape_window(con);
     draw_util_copy_surface(&(con->frame_buffer), &(con->frame), 0, 0, 0, 0, con->rect.width, con->rect.height);
 }
 
@@ -1018,11 +1137,13 @@ void x_push_node(Con *con) {
             // TODO Should this work the same way for L_TABBED?
             if (!con->parent ||
                 con->parent->layout != L_STACKED ||
-                TAILQ_FIRST(&(con->parent->focus_head)) == con)
+                TAILQ_FIRST(&(con->parent->focus_head)) == con) {
                 /* Render the decoration now to make the correct decoration visible
                  * from the very first moment. Later calls will be cached, so this
                  * doesn’t hurt performance. */
                 x_deco_recurse(con);
+                x_shape_title(con);
+            }
         }
 
         DLOG("setting rect (%d, %d, %d, %d)\n", rect.x, rect.y, rect.width, rect.height);
