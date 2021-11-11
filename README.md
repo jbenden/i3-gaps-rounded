@@ -1,9 +1,11 @@
-[![Build Status](https://github.com/Airblader/i3/actions/workflows/main.yml/badge.svg)](https://github.com/Airblader/i3/actions/workflows/main.yml)
-[![Issues](https://img.shields.io/github/issues/Airblader/i3.svg)](https://github.com/Airblader/i3/issues)
-[![Forks](https://img.shields.io/github/forks/Airblader/i3.svg)](https://github.com/Airblader/i3/network)
-[![Stars](https://img.shields.io/github/stars/Airblader/i3.svg)](https://github.com/Airblader/i3/stargazers)
+[![Build Status](https://github.com/jbenden/i3-gaps-rounded/actions/workflows/main.yml/badge.svg)](https://github.com/jbenden/i3-gaps-rounded/actions/workflows/main.yml)
+[![Issues](https://img.shields.io/github/issues/jbenden/i3-gaps-rounded.svg)](https://github.com/jbenden/i3-gaps-rounded/issues)
+[![Forks](https://img.shields.io/github/forks/jbenden/i3-gaps-rounded.svg)](https://github.com/jbenden/i3-gaps-rounded/network)
+[![Stars](https://img.shields.io/github/stars/jbenden/i3-gaps-rounded.svg)](https://github.com/jbenden/i3-gaps-rounded/stargazers)
 
 # Rounded i3-gaps
+
+    .:: This repository is a personal copy, with all patches and fixups needed to completely work with all the latest changes from upstream ::.
 
 For anyone wondering how to configure rounded window corners, see [configuration](#rounded-window-corners).
 
@@ -24,11 +26,11 @@ If you're running an Arch-based distro, you can install it from the AUR (`i3-gap
 
 If not, unless there is a repository for your distro, you will probably have to compile it yourself. To do so, refer to the [wiki](https://github.com/Airblader/i3/wiki/Building-from-source).
 
-*Note:* When cloning the repo, replace `Airblader/i3` with `resloved/i3`.
+*Note:* When cloning the repo, replace `Airblader/i3` with `jbenden/i3-gaps-rounded`.
 
 ## Where can I get help?
 
-For bug reports or feature requests regarding Rounded i3-gaps specifically, open an issue on [GitHub](https://www.github.com/Resloved/i3). 
+For bug reports or feature requests regarding Rounded i3-gaps specifically, open an issue on [GitHub](https://www.github.com/jbenden/i3-gaps-rounded). 
 
 If your issue is with i3-gaps, report it [here](https://github.com/Airblader/i3).
 
