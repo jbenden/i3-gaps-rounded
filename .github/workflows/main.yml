@@ -62,20 +62,20 @@ jobs:
     - name: build dist tarball
       run: |
         docker run -v $PWD:/usr/src/i3/ -w /usr/src/i3 -e CC ${{ env.BASENAME }} /bin/sh -c 'rm -rf distbuild; mkdir distbuild && cd distbuild && meson .. -Ddocs=true -Dmans=true && ninja -v dist'
-    - name: build Debian packages
-      run: |
-        echo "::group::Debian amd64"
-        ./travis/skip-pkg.sh || docker run -v $PWD:/usr/src/i3/ -w /usr/src/i3 ${{ env.BASENAME }} ./travis/debian-build.sh deb/debian-amd64/DIST
-        echo "::endgroup::"
-        echo "::group::Ubuntu amd64"
-        ./travis/skip-pkg.sh || docker run -v $PWD:/usr/src/i3/ -w /usr/src/i3 ${{ env.BASENAME_UBUNTU }} ./travis/debian-build.sh deb/ubuntu-amd64/DIST
-        echo "::endgroup::"
-        echo "::group::Debian i386"
-        ./travis/skip-pkg.sh || docker run -v $PWD:/usr/src/i3/ -w /usr/src/i3 ${{ env.BASENAME_386 }} linux32 ./travis/debian-build.sh deb/debian-i386/DIST
-        echo "::endgroup::"
-        echo "::group::Ubuntu i386"
-        ./travis/skip-pkg.sh || docker run -v $PWD:/usr/src/i3/ -w /usr/src/i3 ${{ env.BASENAME_UBUNTU_386 }} linux32 ./travis/debian-build.sh deb/ubuntu-i386/DIST
-        echo "::endgroup::"
+    #- name: build Debian packages
+    #  run: |
+    #    echo "::group::Debian amd64"
+    #    ./travis/skip-pkg.sh || docker run -v $PWD:/usr/src/i3/ -w /usr/src/i3 ${{ env.BASENAME }} ./travis/debian-build.sh deb/debian-amd64/DIST
+    #    echo "::endgroup::"
+    #    echo "::group::Ubuntu amd64"
+    #    ./travis/skip-pkg.sh || docker run -v $PWD:/usr/src/i3/ -w /usr/src/i3 ${{ env.BASENAME_UBUNTU }} ./travis/debian-build.sh deb/ubuntu-amd64/DIST
+    #    echo "::endgroup::"
+    #    echo "::group::Debian i386"
+    #    ./travis/skip-pkg.sh || docker run -v $PWD:/usr/src/i3/ -w /usr/src/i3 ${{ env.BASENAME_386 }} linux32 ./travis/debian-build.sh deb/debian-i386/DIST
+    #    echo "::endgroup::"
+    #    echo "::group::Ubuntu i386"
+    #    ./travis/skip-pkg.sh || docker run -v $PWD:/usr/src/i3/ -w /usr/src/i3 ${{ env.BASENAME_UBUNTU_386 }} linux32 ./travis/debian-build.sh deb/ubuntu-i386/DIST
+    #    echo "::endgroup::"
     #- name: push Debian packages to balto
     #  run: |
     #    ./travis/skip-pkg.sh || travis/push-balto.sh
@@ -89,8 +89,7 @@ jobs:
       uses: actions/upload-artifact@v2
       with:
         name: build
-        path: build/*.deb build/meson-dist/*.xz
-      if: ${{ success() }}
+        path: distbuild/meson-dist/*.xz
   formatting:
     name: Check formatting
     runs-on: ubuntu-latest
