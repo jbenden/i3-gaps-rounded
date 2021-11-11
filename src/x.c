@@ -452,7 +452,7 @@ static size_t x_get_border_rectangles(Con *con, xcb_rectangle_t rectangles[4]) {
     return count;
 }
 
-void x_shape_title(Con *con) {
+static void x_shape_title(Con *con) {
     if (con->layout != L_TABBED && con->layout != L_STACKED) {
         return;
     }
@@ -514,7 +514,7 @@ static bool smart_gaps_has_gaps(Con *con) {
  * Round window corners when possible
  *
  */
-void x_shape_window(Con *con) {
+static void x_shape_window(Con *con) {
     const xcb_query_extension_reply_t *shape_query;
     shape_query = xcb_get_extension_data(conn, &xcb_shape_id);
 
