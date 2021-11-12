@@ -502,8 +502,19 @@ static bool has_outer_gaps(gaps_t gaps) {
            gaps.left > 0;
 }
 
+static bool has_exactly_one_child(Con *con) {
+    Con *workspace = con_get_workspace(con);
+
+    // clang-format off
+    return con_num_visible_children(workspace) <= 1
+        || (con_num_children(workspace) == 1 &&
+            (TAILQ_FIRST(&(workspace->nodes_head))->layout == L_TABBED ||
+             TAILQ_FIRST(&(workspace->nodes_head))->layout == L_STACKED));
+    // clang-format on
+}
+
 static bool smart_gaps_active(Con *con) {
-    return config.smart_gaps == SMART_GAPS_ON && con_num_visible_children(con->parent) <= 1;
+    return config.smart_gaps == SMART_GAPS_ON && has_exactly_one_child(con);
 }
 
 static bool smart_gaps_has_gaps(Con *con) {
@@ -519,11 +530,11 @@ static void x_shape_window(Con *con) {
     shape_query = xcb_get_extension_data(conn, &xcb_shape_id);
 
     if (!shape_query->present || con->parent->type == CT_DOCKAREA) {
+        DLOG("You cannot make %p / %s have rounded corners.\n", con, con->name);
         return;
     }
 
-    if (con->fullscreen_mode ||
-        (!con_is_floating(con) && smart_gaps_has_gaps(con))) {
+    if (con->fullscreen_mode != CF_NONE || (!con_is_floating(con) && smart_gaps_has_gaps(con))) {
         xcb_shape_mask(conn, XCB_SHAPE_SO_SET, XCB_SHAPE_SK_BOUNDING, con->frame.id, 0, 0, XCB_NONE);
         xcb_shape_mask(conn, XCB_SHAPE_SO_SET, XCB_SHAPE_SK_CLIP, con->frame.id, 0, 0, XCB_NONE);
         return;
