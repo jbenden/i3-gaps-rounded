@@ -1011,7 +1011,6 @@ void x_push_node(Con *con) {
     con_state *state;
     Rect rect = con->rect;
 
-    //DLOG("Pushing changes for node %p / %s\n", con, con->name);
     state = state_for_frame(con->frame.id);
 
     if (state->name != NULL) {
@@ -1124,8 +1123,9 @@ void x_push_node(Con *con) {
                 win_depth = con->window->depth;
 
             /* Ensure we have valid dimensions for our surface. */
-            // TODO This is probably a bug in the condition above as we should never enter this path
-            //      for height == 0. Also, we should probably handle width == 0 the same way.
+            /* TODO: This is probably a bug in the condition above as we should
+             * never enter this path for height == 0. Also, we should probably
+             * handle width == 0 the same way. */
             int width = MAX((int32_t)rect.width, 1);
             int height = MAX((int32_t)rect.height, 1);
 
@@ -1144,8 +1144,8 @@ void x_push_node(Con *con) {
             con->pixmap_recreated = true;
 
             /* Don’t render the decoration for windows inside a stack which are
-             * not visible right now */
-            // TODO Should this work the same way for L_TABBED?
+             * not visible right now
+             * TODO: Should this work the same way for L_TABBED? */
             if (!con->parent ||
                 con->parent->layout != L_STACKED ||
                 TAILQ_FIRST(&(con->parent->focus_head)) == con) {
@@ -1258,7 +1258,6 @@ static void x_push_node_unmaps(Con *con) {
     Con *current;
     con_state *state;
 
-    //DLOG("Pushing changes (with unmaps) for node %p / %s\n", con, con->name);
     state = state_for_frame(con->frame.id);
 
     /* map/unmap if map state changed, also ensure that the child window
@@ -1334,7 +1333,6 @@ void x_push_changes(Con *con) {
     }
 
     DLOG("-- PUSHING WINDOW STACK --\n");
-    //DLOG("Disabling EnterNotify\n");
     /* We need to keep SubstructureRedirect around, otherwise clients can send
      * ConfigureWindow requests and get them applied directly instead of having
      * them become ConfigureRequests that i3 handles. */
@@ -1343,7 +1341,6 @@ void x_push_changes(Con *con) {
         if (state->mapped)
             xcb_change_window_attributes(conn, state->id, XCB_CW_EVENT_MASK, values);
     }
-    //DLOG("Done, EnterNotify disabled\n");
     bool order_changed = false;
     bool stacking_changed = false;
 
@@ -1373,14 +1370,12 @@ void x_push_changes(Con *con) {
         if (con_has_managed_window(state->con))
             memcpy(walk++, &(state->con->window->id), sizeof(xcb_window_t));
 
-        //DLOG("stack: 0x%08x\n", state->id);
         con_state *prev = CIRCLEQ_PREV(state, state);
         con_state *old_prev = CIRCLEQ_PREV(state, old_state);
         if (prev != old_prev)
             order_changed = true;
         if ((state->initial || order_changed) && prev != CIRCLEQ_END(&state_head)) {
             stacking_changed = true;
-            //DLOG("Stacking 0x%08x above 0x%08x\n", prev->id, state->id);
             uint32_t mask = 0;
             mask |= XCB_CONFIG_WINDOW_SIBLING;
             mask |= XCB_CONFIG_WINDOW_STACK_MODE;
@@ -1433,13 +1428,11 @@ void x_push_changes(Con *con) {
         warp_to = NULL;
     }
 
-    //DLOG("Re-enabling EnterNotify\n");
     values[0] = FRAME_EVENT_MASK;
     CIRCLEQ_FOREACH_REVERSE (state, &state_head, state) {
         if (state->mapped)
             xcb_change_window_attributes(conn, state->id, XCB_CW_EVENT_MASK, values);
     }
-    //DLOG("Done, EnterNotify re-enabled\n");
 
     x_deco_recurse(con);
 
@@ -1525,9 +1518,6 @@ void x_push_changes(Con *con) {
         CIRCLEQ_REMOVE(&old_state_head, state, old_state);
         CIRCLEQ_INSERT_TAIL(&old_state_head, state, old_state);
     }
-    //CIRCLEQ_FOREACH(state, &old_state_head, old_state) {
-    //    DLOG("old stack: 0x%08x\n", state->id);
-    //}
 
     xcb_flush(conn);
 }
@@ -1540,7 +1530,6 @@ void x_push_changes(Con *con) {
 void x_raise_con(Con *con) {
     con_state *state;
     state = state_for_frame(con->frame.id);
-    //DLOG("raising in new stack: %p / %s / %s / xid %08x\n", con, con->name, con->window ? con->window->name_json : "", state->id);
 
     CIRCLEQ_REMOVE(&state_head, state, state);
     CIRCLEQ_INSERT_HEAD(&state_head, state, state);
