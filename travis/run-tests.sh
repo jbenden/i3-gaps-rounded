@@ -3,6 +3,9 @@
 set -e
 set -x
 
+# Mark Docker container directory as trusted
+git config --global --add safe.directory /usr/src/i3
+
 cd build
 
 # TODO: remove this workaround once https://bugs.debian.org/836723 is fixed
