@@ -22,7 +22,7 @@ i3-gaps is a fork of [i3wm](https://www.i3wm.org), a tiling window manager for X
 
 ## How do I install i3-gaps?
 
-If you're running an Arch-based distro, you can install it from the AUR (`i3-gaps-rounded`).
+If you're running an Arch-based distro, you can install it from the AUR (`i3-gaps-rounded-git`).
 
 If not, unless there is a repository for your distro, you will probably have to compile it yourself. To do so, refer to the [wiki](https://github.com/Airblader/i3/wiki/Building-from-source).
 
