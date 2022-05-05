@@ -23,6 +23,7 @@ jobs:
 
     steps:
     - uses: actions/checkout@v2
+    - run: git config --global --add safe.directory /usr/src/i3
     - run: git fetch --prune --unshallow
     - name: construct container name
       run: |
