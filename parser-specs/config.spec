@@ -89,6 +89,8 @@ state SMART_BORDERS:
 state SMART_GAPS:
   enabled = '1', 'yes', 'true', 'on', 'enable', 'active'
       -> call cfg_smart_gaps($enabled)
+  enabled = '0', 'no', 'false', 'off', 'disable', 'inactive'
+      -> call cfg_smart_gaps($enabled)
   enabled = 'inverse_outer'
       -> call cfg_smart_gaps($enabled)
 
@@ -435,8 +437,6 @@ state BINDCOMMAND:
   exclude_titlebar = '--exclude-titlebar'
       ->
   command = string
-      -> call cfg_binding($bindtype, $modifiers, $key, $release, $border, $whole_window, $exclude_titlebar, $command)
-  end
       -> call cfg_binding($bindtype, $modifiers, $key, $release, $border, $whole_window, $exclude_titlebar, $command)
 
 ################################################################################
