@@ -10,17 +10,60 @@
 #include "all.h"
 static xcb_window_t create_drop_indicator(Rect rect);
 
+static bool is_tiling_drop_target(Con *con) {
+    if (!con_has_managed_window(con) ||
+        con_is_floating(con) ||
+        con_is_hidden(con)) {
+        return false;
+    }
+    Con *ws = con_get_workspace(con);
+    if (con_is_internal(ws)) {
+        /* Skip containers on i3-internal containers like the scratchpad, which are
+           technically visible on their pseudo-output. */
+        return false;
+    }
+    if (!workspace_is_visible(ws)) {
+        return false;
+    }
+    Con *fs = con_get_fullscreen_covering_ws(ws);
+    if (fs != NULL && fs != con) {
+        /* Workspace is visible, but con is not visible because some other
+           container is in fullscreen. */
+        return false;
+    }
+    return true;
+}
+
 /*
- * Includes decoration (container title) to the container's rect. This way we
- * can find the correct drop target if the mouse is on a container's
- * decoration.
+ * Returns whether there currently are any drop targets.
+ * Used to only initiate a drag when there is something to drop onto.
  *
  */
-static Rect con_rect_plus_deco_height(Con *con) {
-    Rect rect = con->rect;
-    rect.height += con->deco_rect.height;
-    rect.y -= con->deco_rect.height;
-    return rect;
+bool has_drop_targets(void) {
+    int drop_targets = 0;
+    Con *con;
+    TAILQ_FOREACH (con, &all_cons, all_cons) {
+        if (!is_tiling_drop_target(con)) {
+            continue;
+        }
+        drop_targets++;
+    }
+
+    /* In addition to tiling containers themselves, an visible but empty
+     * workspace (in a multi-monitor scenario) also is a drop target. */
+    Con *output;
+    TAILQ_FOREACH (output, &(croot->focus_head), focused) {
+        if (con_is_internal(output)) {
+            continue;
+        }
+        Con *visible_ws = NULL;
+        GREP_FIRST(visible_ws, output_get_content(output), workspace_is_visible(child));
+        if (visible_ws != NULL && con_num_children(visible_ws) == 0) {
+            drop_targets++;
+        }
+    }
+
+    return drop_targets > 1;
 }
 
 /*
@@ -30,19 +73,14 @@ static Rect con_rect_plus_deco_height(Con *con) {
 static Con *find_drop_target(uint32_t x, uint32_t y) {
     Con *con;
     TAILQ_FOREACH (con, &all_cons, all_cons) {
-        Rect rect = con_rect_plus_deco_height(con);
-
-        if (rect_contains(rect, x, y) &&
-            con_has_managed_window(con) &&
-            !con_is_floating(con) &&
-            !con_is_hidden(con)) {
-            Con *ws = con_get_workspace(con);
-            if (!workspace_is_visible(ws)) {
-                continue;
-            }
-            Con *fs = con_get_fullscreen_covering_ws(ws);
-            return fs ? fs : con;
+        Rect rect = con->rect;
+        if (!rect_contains(rect, x, y) ||
+            !is_tiling_drop_target(con)) {
+            continue;
         }
+        Con *ws = con_get_workspace(con);
+        Con *fs = con_get_fullscreen_covering_ws(ws);
+        return fs ? fs : con;
     }
 
     /* Couldn't find leaf container, get a workspace. */
@@ -131,7 +169,7 @@ DRAGGING_CB(drag_callback) {
         return;
     }
 
-    Rect rect = con_rect_plus_deco_height(target);
+    Rect rect = target->rect;
 
     direction_t direction = 0;
     drop_type_t drop_type = DT_CENTER;
@@ -263,7 +301,7 @@ static xcb_window_t create_drop_indicator(Rect rect) {
  * Initiates a mouse drag operation on a tiled window.
  *
  */
-void tiling_drag(Con *con, xcb_button_press_event_t *event) {
+void tiling_drag(Con *con, xcb_button_press_event_t *event, bool use_threshold) {
     DLOG("Start dragging tiled container: con = %p\n", con);
     bool set_focus = (con == focused);
     bool set_fs = con->fullscreen_mode != CF_NONE;
@@ -279,7 +317,7 @@ void tiling_drag(Con *con, xcb_button_press_event_t *event) {
     xcb_window_t indicator = 0;
     const struct callback_params params = {&indicator, &target, &direction, &drop_type};
 
-    drag_result_t drag_result = drag_pointer(con, event, XCB_NONE, BORDER_TOP, XCURSOR_CURSOR_MOVE, drag_callback, &params);
+    drag_result_t drag_result = drag_pointer(con, event, XCB_NONE, XCURSOR_CURSOR_MOVE, use_threshold, drag_callback, &params);
 
     /* Dragging is done. We don't need the indicator window any more. */
     xcb_destroy_window(conn, indicator);
@@ -374,6 +412,7 @@ void tiling_drag(Con *con, xcb_button_press_event_t *event) {
         con_enable_fullscreen(con, CF_OUTPUT);
     }
     if (set_focus) {
+        workspace_show(con_get_workspace(con));
         con_focus(con);
     }
     tree_render();

@@ -214,8 +214,8 @@ void manage_window(xcb_window_t window, xcb_get_window_attributes_cookie_t cooki
     window_update_role(cwindow, xcb_get_property_reply(conn, role_cookie, NULL));
     bool urgency_hint;
     window_update_hints(cwindow, xcb_get_property_reply(conn, wm_hints_cookie, NULL), &urgency_hint);
-    border_style_t motif_border_style = BS_NORMAL;
-    window_update_motif_hints(cwindow, xcb_get_property_reply(conn, motif_wm_hints_cookie, NULL), &motif_border_style);
+    border_style_t motif_border_style;
+    bool has_mwm_hints = window_update_motif_hints(cwindow, xcb_get_property_reply(conn, motif_wm_hints_cookie, NULL), &motif_border_style);
     window_update_normal_hints(cwindow, xcb_get_property_reply(conn, wm_normal_hints_cookie, NULL), geom);
     window_update_machine(cwindow, xcb_get_property_reply(conn, wm_machine_cookie, NULL));
     xcb_get_property_reply_t *type_reply = xcb_get_property_reply(conn, wm_type_cookie, NULL);
@@ -511,23 +511,19 @@ void manage_window(xcb_window_t window, xcb_get_window_attributes_cookie_t cooki
     if (nc->geometry.width == 0)
         nc->geometry = (Rect){geom->x, geom->y, geom->width, geom->height};
 
-    if (motif_border_style != BS_NORMAL) {
+    if (want_floating) {
+        DLOG("geometry = %d x %d\n", nc->geometry.width, nc->geometry.height);
+        if (floating_enable(nc, true)) {
+            nc->floating = FLOATING_AUTO_ON;
+        }
+    }
+
+    if (has_mwm_hints) {
         DLOG("MOTIF_WM_HINTS specifies decorations (border_style = %d)\n", motif_border_style);
         if (want_floating) {
             con_set_border_style(nc, motif_border_style, config.default_floating_border_width);
         } else {
             con_set_border_style(nc, motif_border_style, config.default_border_width);
-        }
-    }
-
-    if (want_floating) {
-        DLOG("geometry = %d x %d\n", nc->geometry.width, nc->geometry.height);
-        /* automatically set the border to the default value if a motif border
-         * was not specified */
-        bool automatic_border = (motif_border_style == BS_NORMAL);
-
-        if (floating_enable(nc, automatic_border)) {
-            nc->floating = FLOATING_AUTO_ON;
         }
     }
 

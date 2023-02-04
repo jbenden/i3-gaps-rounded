@@ -62,9 +62,11 @@ typedef enum { NO_ORIENTATION = 0,
                VERT } orientation_t;
 typedef enum { BEFORE,
                AFTER } position_t;
-typedef enum { BS_NORMAL = 0,
-               BS_NONE = 1,
-               BS_PIXEL = 2 } border_style_t;
+typedef enum {
+    BS_NONE = 0,
+    BS_PIXEL = 1,
+    BS_NORMAL = 2,
+} border_style_t;
 
 /** parameter to specify whether tree_close_internal() and x_window_kill() should kill
  * only this specific window or the whole X11 client */
@@ -153,6 +155,17 @@ struct gaps_t {
     int left;
 };
 
+typedef enum {
+    GAPS_INNER = (1 << 0),
+    GAPS_TOP = (1 << 1),
+    GAPS_RIGHT = (1 << 2),
+    GAPS_BOTTOM = (1 << 3),
+    GAPS_LEFT = (1 << 4),
+    GAPS_VERTICAL = (GAPS_TOP | GAPS_BOTTOM),
+    GAPS_HORIZONTAL = (GAPS_RIGHT | GAPS_LEFT),
+    GAPS_OUTER = (GAPS_VERTICAL | GAPS_HORIZONTAL),
+} gaps_mask_t;
+
 /**
  * Focus wrapping modes.
  */
@@ -227,6 +240,7 @@ struct Workspace_Assignment {
     char *name;
     char *output;
     gaps_t gaps;
+    gaps_mask_t gaps_mask;
 
     TAILQ_ENTRY(Workspace_Assignment) ws_assignments;
 };
@@ -743,7 +757,16 @@ struct Con {
      * layout in workspace_layout and creates a new split container with that
      * layout whenever a new container is attached to the workspace. */
     layout_t layout, last_split_layout, workspace_layout;
+
     border_style_t border_style;
+    /* When the border style of a con changes because of motif hints, we don't
+     * want to set more decoration that the user wants. The user's preference is determined by these:
+     * 1. For new tiling windows, as set by `default_border`
+     * 2. For new floating windows, as set by `default_floating_border`
+     * 3. For all windows that the user runs the `border` command, whatever is
+     * the result of that command for that window. */
+    border_style_t max_user_border_style;
+
     /** floating? (= not in tiling layout) This cannot be simply a bool
      * because we want to keep track of whether the status was set by the
      * application (by setting _NET_WM_WINDOW_TYPE appropriately) or by the

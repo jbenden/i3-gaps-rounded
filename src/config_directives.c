@@ -163,15 +163,9 @@ i3_event_state_mask_t event_state_from_str(const char *str) {
     return result;
 }
 
-static char *font_pattern;
-
 CFGFUN(font, const char *font) {
     config.font = load_font(font, true);
     set_font(&config.font);
-
-    /* Save the font pattern for using it as bar font later on */
-    FREE(font_pattern);
-    font_pattern = sstrdup(font);
 }
 
 CFGFUN(binding, const char *bindtype, const char *modifiers, const char *key, const char *release, const char *border, const char *whole_window, const char *exclude_titlebar, const char *command) {
@@ -186,6 +180,11 @@ static char *current_mode;
 static bool current_mode_pango_markup;
 
 CFGFUN(mode_binding, const char *bindtype, const char *modifiers, const char *key, const char *release, const char *border, const char *whole_window, const char *exclude_titlebar, const char *command) {
+    if (current_mode == NULL) {
+        /* When using an invalid mode name, e.g. “default” */
+        return;
+    }
+
     configure_binding(bindtype, modifiers, key, release, border, whole_window, exclude_titlebar, command, current_mode, current_mode_pango_markup);
 }
 
@@ -232,143 +231,85 @@ CFGFUN(for_window, const char *command) {
     TAILQ_INSERT_TAIL(&assignments, assignment, assignments);
 }
 
-static void create_gaps_assignment(const char *workspace, const char *scope, gaps_t gaps) {
+static void apply_gaps(gaps_t *gaps, gaps_mask_t mask, int value) {
+    if (gaps == NULL) {
+        return;
+    }
+    if (mask & GAPS_INNER) {
+        gaps->inner = value;
+    }
+    if (mask & GAPS_TOP) {
+        gaps->top = value;
+    }
+    if (mask & GAPS_RIGHT) {
+        gaps->right = value;
+    }
+    if (mask & GAPS_BOTTOM) {
+        gaps->bottom = value;
+    }
+    if (mask & GAPS_LEFT) {
+        gaps->left = value;
+    }
+}
+
+static void create_gaps_assignment(const char *workspace, const gaps_mask_t mask, const int pixels) {
+    if (mask == 0) {
+        return;
+    }
+
     DLOG("Setting gaps for workspace %s", workspace);
 
+    bool found = false;
     struct Workspace_Assignment *assignment;
     TAILQ_FOREACH (assignment, &ws_assignments, ws_assignments) {
         if (strcasecmp(assignment->name, workspace) == 0) {
-            if (!strcmp(scope, "inner")) {
-                assignment->gaps.inner = gaps.inner;
-            } else if (!strcmp(scope, "outer")) {
-                assignment->gaps.top = gaps.top;
-                assignment->gaps.right = gaps.right;
-                assignment->gaps.bottom = gaps.bottom;
-                assignment->gaps.left = gaps.left;
-            } else if (!strcmp(scope, "vertical")) {
-                assignment->gaps.top = gaps.top;
-                assignment->gaps.bottom = gaps.bottom;
-            } else if (!strcmp(scope, "horizontal")) {
-                assignment->gaps.right = gaps.right;
-                assignment->gaps.left = gaps.left;
-            } else if (!strcmp(scope, "top")) {
-                assignment->gaps.top = gaps.top;
-            } else if (!strcmp(scope, "right")) {
-                assignment->gaps.right = gaps.right;
-            } else if (!strcmp(scope, "bottom")) {
-                assignment->gaps.bottom = gaps.bottom;
-            } else if (!strcmp(scope, "left")) {
-                assignment->gaps.left = gaps.left;
-            } else {
-                ELOG("Invalid command, cannot process scope %s", scope);
-            }
-
-            return;
+            found = true;
+            break;
         }
     }
 
-    // Assignment does not yet exist, let's create it.
-    assignment = scalloc(1, sizeof(struct Workspace_Assignment));
-    assignment->name = sstrdup(workspace);
-    assignment->output = NULL;
-    if (!strcmp(scope, "inner")) {
-        assignment->gaps.inner = gaps.inner;
-    } else if (!strcmp(scope, "outer")) {
-        assignment->gaps.top = gaps.top;
-        assignment->gaps.right = gaps.right;
-        assignment->gaps.bottom = gaps.bottom;
-        assignment->gaps.left = gaps.left;
-    } else if (!strcmp(scope, "vertical")) {
-        assignment->gaps.top = gaps.top;
-        assignment->gaps.bottom = gaps.bottom;
-    } else if (!strcmp(scope, "horizontal")) {
-        assignment->gaps.right = gaps.right;
-        assignment->gaps.left = gaps.left;
-    } else if (!strcmp(scope, "top")) {
-        assignment->gaps.top = gaps.top;
-    } else if (!strcmp(scope, "right")) {
-        assignment->gaps.right = gaps.right;
-    } else if (!strcmp(scope, "bottom")) {
-        assignment->gaps.bottom = gaps.bottom;
-    } else if (!strcmp(scope, "left")) {
-        assignment->gaps.left = gaps.left;
-    } else {
-        ELOG("Invalid command, cannot process scope %s", scope);
+    /* Assignment does not yet exist, let's create it. */
+    if (!found) {
+        assignment = scalloc(1, sizeof(struct Workspace_Assignment));
+        assignment->name = sstrdup(workspace);
+        assignment->output = NULL;
+        TAILQ_INSERT_TAIL(&ws_assignments, assignment, ws_assignments);
     }
-    TAILQ_INSERT_TAIL(&ws_assignments, assignment, ws_assignments);
+
+    assignment->gaps_mask |= mask;
+    apply_gaps(&assignment->gaps, mask, pixels);
+}
+
+static gaps_mask_t gaps_scope_to_mask(const char *scope) {
+    if (!strcmp(scope, "inner")) {
+        return GAPS_INNER;
+    } else if (!strcmp(scope, "outer")) {
+        return GAPS_OUTER;
+    } else if (!strcmp(scope, "vertical")) {
+        return GAPS_VERTICAL;
+    } else if (!strcmp(scope, "horizontal")) {
+        return GAPS_HORIZONTAL;
+    } else if (!strcmp(scope, "top")) {
+        return GAPS_TOP;
+    } else if (!strcmp(scope, "right")) {
+        return GAPS_RIGHT;
+    } else if (!strcmp(scope, "bottom")) {
+        return GAPS_BOTTOM;
+    } else if (!strcmp(scope, "left")) {
+        return GAPS_LEFT;
+    }
+    ELOG("Invalid command, cannot process scope %s", scope);
+    return 0;
 }
 
 CFGFUN(gaps, const char *workspace, const char *scope, const long value) {
     int pixels = logical_px(value);
-    gaps_t gaps = (gaps_t){0, 0, 0, 0, 0};
-    if (!strcmp(scope, "inner")) {
-        if (workspace == NULL)
-            config.gaps.inner = pixels;
-        else {
-            gaps.inner = pixels - config.gaps.inner;
-            create_gaps_assignment(workspace, scope, gaps);
-        }
-    } else if (!strcmp(scope, "outer")) {
-        if (workspace == NULL) {
-            config.gaps.top = pixels;
-            config.gaps.right = pixels;
-            config.gaps.bottom = pixels;
-            config.gaps.left = pixels;
-        } else {
-            gaps.top = pixels - config.gaps.top;
-            gaps.right = pixels - config.gaps.right;
-            gaps.bottom = pixels - config.gaps.bottom;
-            gaps.left = pixels - config.gaps.left;
-            create_gaps_assignment(workspace, scope, gaps);
-        }
-    } else if (!strcmp(scope, "vertical")) {
-        if (workspace == NULL) {
-            config.gaps.top = pixels;
-            config.gaps.bottom = pixels;
-        } else {
-            gaps.top = pixels - config.gaps.top;
-            gaps.bottom = pixels - config.gaps.bottom;
-            create_gaps_assignment(workspace, scope, gaps);
-        }
-    } else if (!strcmp(scope, "horizontal")) {
-        if (workspace == NULL) {
-            config.gaps.right = pixels;
-            config.gaps.left = pixels;
-        } else {
-            gaps.right = pixels - config.gaps.right;
-            gaps.left = pixels - config.gaps.left;
-            create_gaps_assignment(workspace, scope, gaps);
-        }
-    } else if (!strcmp(scope, "top")) {
-        if (workspace == NULL)
-            config.gaps.top = pixels;
-        else {
-            gaps.top = pixels - config.gaps.top;
-            create_gaps_assignment(workspace, scope, gaps);
-        }
-    } else if (!strcmp(scope, "right")) {
-        if (workspace == NULL)
-            config.gaps.right = pixels;
-        else {
-            gaps.right = pixels - config.gaps.right;
-            create_gaps_assignment(workspace, scope, gaps);
-        }
-    } else if (!strcmp(scope, "bottom")) {
-        if (workspace == NULL)
-            config.gaps.bottom = pixels;
-        else {
-            gaps.bottom = pixels - config.gaps.bottom;
-            create_gaps_assignment(workspace, scope, gaps);
-        }
-    } else if (!strcmp(scope, "left")) {
-        if (workspace == NULL)
-            config.gaps.left = pixels;
-        else {
-            gaps.left = pixels - config.gaps.left;
-            create_gaps_assignment(workspace, scope, gaps);
-        }
+    gaps_mask_t mask = gaps_scope_to_mask(scope);
+
+    if (workspace == NULL) {
+        apply_gaps(&config.gaps, mask, pixels);
     } else {
-        ELOG("Invalid command, cannot process scope %s", scope);
+        create_gaps_assignment(workspace, mask, pixels);
     }
 }
 
@@ -723,6 +664,20 @@ CFGFUN(ipc_kill_timeout, const long timeout_ms) {
     ipc_set_kill_timeout(timeout_ms / 1000.0);
 }
 
+CFGFUN(tiling_drag, const char *value) {
+    if (strcmp(value, "modifier") == 0) {
+        config.tiling_drag = TILING_DRAG_MODIFIER;
+    } else if (strcmp(value, "titlebar") == 0) {
+        config.tiling_drag = TILING_DRAG_TITLEBAR;
+    } else if (strcmp(value, "modifier,titlebar") == 0 ||
+               strcmp(value, "titlebar,modifier") == 0) {
+        /* Switch the above to strtok() or similar if we ever grow more options */
+        config.tiling_drag = TILING_DRAG_MODIFIER_OR_TITLEBAR;
+    } else {
+        config.tiling_drag = TILING_DRAG_OFF;
+    }
+}
+
 /*******************************************************************************
  * Bar configuration (i3bar)
  ******************************************************************************/
@@ -764,6 +719,46 @@ CFGFUN(bar_verbose, const char *verbose) {
 
 CFGFUN(bar_height, const long height) {
     current_bar->bar_height = (uint32_t)height;
+}
+
+static void dlog_padding(void) {
+    DLOG("padding now: x=%d, y=%d, w=%d, h=%d\n",
+         current_bar->padding.x,
+         current_bar->padding.y,
+         current_bar->padding.width,
+         current_bar->padding.height);
+}
+
+CFGFUN(bar_padding_one, const long all) {
+    current_bar->padding.x = (uint32_t)all;
+    current_bar->padding.y = (uint32_t)all;
+    current_bar->padding.width = (uint32_t)all;
+    current_bar->padding.height = (uint32_t)all;
+    dlog_padding();
+}
+
+CFGFUN(bar_padding_two, const long top_and_bottom, const long right_and_left) {
+    current_bar->padding.x = (uint32_t)right_and_left;
+    current_bar->padding.y = (uint32_t)top_and_bottom;
+    current_bar->padding.width = (uint32_t)right_and_left;
+    current_bar->padding.height = (uint32_t)top_and_bottom;
+    dlog_padding();
+}
+
+CFGFUN(bar_padding_three, const long top, const long right_and_left, const long bottom) {
+    current_bar->padding.x = (uint32_t)right_and_left;
+    current_bar->padding.y = (uint32_t)top;
+    current_bar->padding.width = (uint32_t)right_and_left;
+    current_bar->padding.height = (uint32_t)bottom;
+    dlog_padding();
+}
+
+CFGFUN(bar_padding_four, const long top, const long right, const long bottom, const long left) {
+    current_bar->padding.x = (uint32_t)left;
+    current_bar->padding.y = (uint32_t)top;
+    current_bar->padding.width = (uint32_t)right;
+    current_bar->padding.height = (uint32_t)bottom;
+    dlog_padding();
 }
 
 CFGFUN(bar_modifier, const char *modifiers) {
@@ -917,10 +912,6 @@ CFGFUN(bar_finish) {
         sasprintf(&current_bar->id, "bar-%d", config.number_barconfigs);
 
     config.number_barconfigs++;
-
-    /* If no font was explicitly set, we use the i3 font as default */
-    if (current_bar->font == NULL && font_pattern != NULL)
-        current_bar->font = sstrdup(font_pattern);
 
     TAILQ_INSERT_TAIL(&barconfigs, current_bar, configs);
     /* Simply reset the pointer, but don't free the resources. */

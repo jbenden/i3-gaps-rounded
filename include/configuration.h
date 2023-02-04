@@ -14,6 +14,7 @@
 
 #include "queue.h"
 #include "i3.h"
+#include "tiling_drag.h"
 
 typedef struct IncludedFile IncludedFile;
 typedef struct Config Config;
@@ -266,6 +267,8 @@ struct Config {
     /* The number of currently parsed barconfigs */
     int number_barconfigs;
 
+    tiling_drag_t tiling_drag;
+
     /* Gap sizes */
     gaps_t gaps;
 
@@ -366,6 +369,8 @@ struct Barconfig {
 
     /** Defines the height of the bar in pixels. */
     uint32_t bar_height;
+
+    struct Rect padding;
 
     struct bar_colors {
         char *background;
